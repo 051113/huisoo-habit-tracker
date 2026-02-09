@@ -376,9 +376,9 @@ if btn:
     st.session_state["history"] = sorted(filtered, key=lambda x: x["date"])
 
     # API 호출
-   weather, weather_err = get_weather(city, owm_api_key)
+weather, weather_err = get_weather(city, owm_api_key)
 
-   if weather_err:
+if weather_err:
     st.warning(f"날씨 실패: {weather_err}")
 
 dog = get_dog_image()
