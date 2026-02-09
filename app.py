@@ -91,29 +91,38 @@ if "latest_share_text" not in st.session_state:
 # API Helpers
 # -----------------------------
 def get_weather(city: str, api_key: str):
-    """OpenWeatherMap에서 날씨 가져오기 (한국어, 섭씨). 실패 시 None, timeout=10"""
     if not city or not api_key:
-        return None
+        return None, "Missing city or API key"
+
+    city_q = f"{city},KR"  # <- 핵심: 국가코드로 모호성 제거
     url = "https://api.openweathermap.org/data/2.5/weather"
-    params = {"q": city, "appid": api_key, "units": "metric", "lang": "kr"}
+    params = {"q": city_q, "appid": api_key.strip(), "units": "metric", "lang": "kr"}
+
     try:
         r = requests.get(url, params=params, timeout=10)
         if r.status_code != 200:
-            return None
+            # OWM은 보통 {"message":"..."} 형태로 이유를 줌
+            try:
+                msg = r.json().get("message", "")
+            except Exception:
+                msg = r.text[:200]
+            return None, f"HTTP {r.status_code}: {msg}"
+
         data = r.json()
         weather_desc = (data.get("weather") or [{}])[0].get("description")
         main = data.get("main", {}) or {}
         wind = data.get("wind", {}) or {}
         return {
-            "city": city,
+            "city": city_q,
             "description": weather_desc,
             "temp_c": main.get("temp"),
             "feels_like_c": main.get("feels_like"),
             "humidity": main.get("humidity"),
             "wind_ms": wind.get("speed"),
-        }
-    except Exception:
-        return None
+        }, None
+
+    except Exception as e:
+        return None, f"Exception: {e}"
 
 
 def _extract_breed_from_url(image_url: str):
@@ -367,8 +376,12 @@ if btn:
     st.session_state["history"] = sorted(filtered, key=lambda x: x["date"])
 
     # API 호출
-    weather = get_weather(city, owm_api_key)
-    dog = get_dog_image()
+   weather, weather_err = get_weather(city, owm_api_key)
+
+   if weather_err:
+    st.warning(f"날씨 실패: {weather_err}")
+
+dog = get_dog_image()
 
     with st.spinner("AI 코치가 리포트를 작성 중..."):
         report, err = generate_report(
